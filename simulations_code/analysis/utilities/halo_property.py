@@ -7,7 +7,7 @@ Units: unless otherwise noted, all quantities are in (combinations of):
     mass [M_sun]
     position [kpc comoving]
     distance, radius [kpc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 '''
 
@@ -19,7 +19,7 @@ from . import constant, io, math
 
 def get_circular_velocity(masses, distances):
     '''
-    Get circular velocity[s] [km/s] at distance[s] [kpc physical]
+    Get circular velocity[s] [km / s] at distance[s] [kpc physical]
     vel_circ = sqrt(G M(< r) / r)
 
     Parameters
@@ -31,7 +31,7 @@ def get_circular_velocity(masses, distances):
 
     Returns
     -------
-    circular velocity[s] at distance[s] [km/s] : float or array
+    circular velocity[s] at distance[s] [km / s] : float or array
     '''
     return np.sqrt(constant.grav_kpc_msun_sec * masses / distances) * constant.km_per_kpc
 
@@ -73,7 +73,7 @@ class HaloPropertyClass:
         '''
         return (
             3
-            / radiuss_wrt_scale**3
+            / radiuss_wrt_scale ** 3
             * (np.log(1 + radiuss_wrt_scale) - 1 / (1 + 1 / radiuss_wrt_scale))
         )
 
@@ -113,7 +113,7 @@ class HaloPropertyClass:
         if redshift is None:
             redshift = self.redshift
 
-        overdensity = 3 / (2 * np.pi * ll**3)  # wrt matter
+        overdensity = 3 / (2 * np.pi * ll ** 3)  # wrt matter
         if reference_kind[0] == 'c':
             overdensity *= self.Cosmology.get_omega('matter', redshift)
 
@@ -158,7 +158,7 @@ class HaloPropertyClass:
                     )
                 )
             x = self.Cosmology.get_omega('matter', redshift) - 1
-            overdensity_value = 18 * np.pi**2 + 82 * x - 39 * x**2  # wrt critical
+            overdensity_value = 18 * np.pi ** 2 + 82 * x - 39 * x ** 2  # wrt critical
             if reference_kind[0] == 'm':
                 overdensity_value /= self.Cosmology.get_omega('matter', redshift)
         else:
@@ -232,7 +232,7 @@ class HaloPropertyClass:
                 # concentrations_to = float(concens_to_all[np.isreal(concens_to_all)][0])
                 # real solution of cubic
                 c0 = (10 + 27 * density_ratio) / 54
-                c1 = np.sqrt((-1 / 9) ** 3 + c0**2)
+                c1 = np.sqrt((-1 / 9) ** 3 + c0 ** 2)
                 concentrations_to = (c0 + c1) ** (1 / 3) + (c0 - c1) ** (1 / 3) - 2 / 3
             else:
                 raise ValueError('not support conversion from fof overdensity definition')
@@ -322,7 +322,7 @@ class HaloPropertyClass:
             )
 
         if masses is None and halo_radiuss is not None:
-            masses = 4 / 3 * np.pi * overdensity_from * density_critical * halo_radiuss**3
+            masses = 4 / 3 * np.pi * overdensity_from * density_critical * halo_radiuss ** 3
 
         if halo_radiuss is None and masses is not None:
             halo_radiuss = (3 / 4 / np.pi * masses / overdensity_from / density_critical) ** (
@@ -498,7 +498,7 @@ class HaloPropertyClass:
 
             def kernel(r3d, rs, r2d):
                 return np.log10(
-                    r3d / ((r3d**2 - r2d**2) ** 0.5 * r3d / rs * (1 + r3d / rs) ** 2)
+                    r3d / ((r3d ** 2 - r2d ** 2) ** 0.5 * r3d / rs * (1 + r3d / rs) ** 2)
                 )
 
             return 10 ** (
@@ -614,7 +614,7 @@ class HaloPropertyClass:
         rad_bin_values = DistanceBin.mins
         if rad_bin_values[-1] != DistanceBin.limits[1]:
             # extend radius bins to boundaries
-            rad_bin_values = np.append(DistanceBin.mins, [DistanceBin.limits[1]])
+            rad_bin_values = np.concatenate((DistanceBin.mins, [DistanceBin.limits[1]]))
 
         if redshift is None:
             redshift = self.redshift
@@ -636,7 +636,7 @@ class HaloPropertyClass:
             )
             densities *= (
                 DistanceBin.volume_in_limit
-                * halo_radius**DistanceBin.dimension_number
+                * halo_radius ** DistanceBin.dimension_number
                 / mass_in_limit
             )
         elif DistanceBin.dimension_number == 2:
@@ -657,7 +657,7 @@ class HaloPropertyClass:
             )
             densities *= (
                 DistanceBin.volume_in_limit
-                * halo_radius**DistanceBin.dimension_number
+                * halo_radius ** DistanceBin.dimension_number
                 / mass_in_limit
             )
 
@@ -706,7 +706,7 @@ class HaloPropertyClass:
 
     def get_circular_velocity(self, virial_kind, masses, concentrations, distances, redshift=None):
         '''
-        Get circular velocity[s] [km/s] at distance[s].
+        Get circular velocity[s] [km / s] at distance[s].
 
         Parameters
         ----------
@@ -727,7 +727,7 @@ class HaloPropertyClass:
 
         Returns
         -------
-        maximum circular velocity [km/s] : float or array
+        maximum circular velocity [km / s] : float or array
         '''
         if redshift is None:
             redshift = self.redshift
@@ -740,7 +740,7 @@ class HaloPropertyClass:
 
     def get_virial_velocity(self, virial_kind, masses, redshift=None):
         '''
-        Get  circular velocity[s] at virial radius [km/s].
+        Get  circular velocity[s] at virial radius [km / s].
 
         Parameters
         ----------
@@ -757,7 +757,7 @@ class HaloPropertyClass:
 
         Returns
         -------
-        virial velocity [km/s] : float or array
+        virial velocity [km / s] : float or array
         '''
         if redshift is None:
             redshift = self.redshift
@@ -817,7 +817,7 @@ class HaloPropertyClass:
                 * overdensity
                 * density_critical
                 * constant.gram_per_sun
-                * constant.kpc_per_cm**3
+                * constant.kpc_per_cm ** 3
             )
             if property_name == 'entropy':
                 prop_values = (

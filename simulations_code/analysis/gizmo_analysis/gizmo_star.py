@@ -2,15 +2,15 @@
 Contains the models for stellar evolution as implemented in Gizmo for the FIRE-2 and FIRE-3 models,
 specifically, nucleosynthetic yields and mass-loss rates for
     (1) stellar winds
-    (2) core-collapse supernova
-    (3) white-dwarf (Ia) supernova
+    (2) core-collapse (II) supernovae
+    (3) white-dwarf (Ia) supernovae
 
 The following nucleosynthetic yields and mass-loss rates depend on progenitor metallicity
     FIRE-2
-        wind:  mass-loss rate; oxygen yield
-        core-collapse supernova:  nitrogen yield
+        stellar wind: overall mass-loss rate, oxygen yield
+        core-collapse supernova: nitrogen yield
     FIRE-3
-        wind:  mass-loss rate; yields for He, C, N, O
+        stellar wind: overall mass-loss rate, yields for He, C, N, O
 
 ----------
 @author: Andrew Wetzel <arwetzel@gmail.com>
@@ -2037,10 +2037,10 @@ def plot_mass_loss_v_age(
 
     colors = ut.plot.get_colors(3, use_black=False)
 
-    subplot.plot(AgeBin.mins, wind, color=colors[0], alpha=0.7, label='wind')
-    subplot.plot(AgeBin.mins, supernova_cc, color=colors[1], alpha=0.7, label='CC supernova')
-    subplot.plot(AgeBin.mins, supernova_wd, color=colors[2], alpha=0.7, label='WD supernova')
-    subplot.plot(AgeBin.mins, total, color='black', alpha=0.6, label='total')
+    subplot.plot(AgeBin.mins, wind, color=colors[0], alpha=0.7, label='stellar winds')
+    subplot.plot(AgeBin.mins, supernova_cc, color=colors[1], alpha=0.7, label='supernova cc')
+    subplot.plot(AgeBin.mins, supernova_wd, color=colors[2], alpha=0.7, label='supernova wd')
+    subplot.plot(AgeBin.mins, total, color='black', alpha=0.8, label='total')
 
     print('wind')
     print('{:.4f}'.format(wind[-1]))

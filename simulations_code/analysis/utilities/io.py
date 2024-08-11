@@ -278,8 +278,6 @@ def get_string_from_numbers(values, digits=3, exponential=None, strip=False):
 
     if not np.isfinite(value):
         string = '{}'
-    elif isinstance(value, int) or (isinstance(value, np.ndarray) and 'int' in str(value.dtype)):
-        string = '{:d}'
     elif exponential is False:
         # use float format
         string = f'{{:.{digits}f}}'
@@ -287,6 +285,8 @@ def get_string_from_numbers(values, digits=3, exponential=None, strip=False):
         # use exponential format
         exponential = True
         string = f'{{:.{digits}e}}'
+    elif isinstance(value, int) or (isinstance(value, np.ndarray) and 'int' in str(value.dtype)):
+        string = '{:d}'
     else:
         string = f'{{:.{digits}f}}'
 
@@ -304,7 +304,7 @@ def get_string_from_numbers(values, digits=3, exponential=None, strip=False):
     else:
         string = string.format(values)
 
-        if strip and string != '0':
+        if strip:
             string = string.rstrip('0').rstrip('.')
 
     return string

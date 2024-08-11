@@ -7,7 +7,7 @@ Units: unless otherwise noted, all quantities are in (combinations of):
     mass [M_sun]
     position [kpc comoving]
     distance, radius [kpc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 '''
 
@@ -580,7 +580,7 @@ def get_velocity_differences(
     cat_1, cat_2, indices_1, indices_2, dimension_indices=[0, 1, 2], total_velocity=False
 ):
     '''
-    Get relative velocity[s] [km/s] of object[s] 1 wrt 2.
+    Get relative velocity[s] [km / s] of object[s] 1 wrt 2.
 
     Parameters
     ----------
@@ -1262,7 +1262,7 @@ def get_catalog_neighbor(
     distance_space: str
         real, red, proj
     neig_velocity_dif_maxs : float
-        neighbor line-of-sight velocity difference maximum[s] [km/s] (if distance_space = proj)
+        neighbor line-of-sight velocity difference maximum[s] [km / s] (if distance_space = proj)
     center_indices : array
         center index[s] to pre-select
     neig_indices : array
@@ -1473,7 +1473,7 @@ def get_halo_radius_mass(HaloProperty, virial_kind, hal, indices):
 
 def get_virial_velocity(HaloProperty, virial_kind, hal, indices):
     '''
-    Get virial circular velocity[s] [km/s] for each halo.
+    Get virial circular velocity[s] [km / s] for each halo.
 
     Parameters
     ----------

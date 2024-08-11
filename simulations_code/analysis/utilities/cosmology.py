@@ -7,7 +7,7 @@ Units: unless otherwise noted, all quantities are in (combinations of):
     mass [M_sun]
     position [kpc comoving]
     distance, radius [kpc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 '''
 
@@ -202,12 +202,11 @@ class CosmologyClass(dict, io.SayClass):
 
         densities /= self['hubble']  # [M_sun / (kpc/h)^3 comoving]
 
-        # if '/h' in input units, leave as is, in units of M_sun / (kpc/h)^3
         if '/h' not in units:
-            densities *= self['hubble'] ** 3  # convert to [M_sun / kpc^3 comoving]
+            densities *= self['hubble'] ** 3  # [M_sun / kpc^3 comoving]
 
         if 'physical' in units:
-            densities *= (1 + redshifts) ** 3  # convert to [M_sun / kpc[/h]^3 physical]
+            densities *= (1 + redshifts) ** 3  # [M_sun / kpc[/h]^3 physical]
         elif 'comoving' in units:
             pass
         else:
@@ -509,25 +508,22 @@ class CosmologyClass(dict, io.SayClass):
             distances_int = integrate.quad(get_ddist, 1e-10, redshifts, (self))[0]
             distances = constant.hubble_distance * distances_int  # [kpc/h comoving]
 
-            # if '/h' in input units, leave as is, in units of kpc/h comoving
-            if '/h' not in units:
-                distances /= self['hubble']  # convert to [kpc comoving]
+            if '/h' in units:
+                distances /= self['hubble']
 
             if 'Mpc' in units:
-                distances *= constant.mega_per_kilo  # convert to [Mpc[/h] comoving]
+                distances *= constant.mega_per_kilo
             elif 'kpc' in units:
                 pass
-            elif 'pc' in units:
-                distances *= constant.kilo  # convert to [pc[/h] comoving]
             else:
-                raise ValueError(f'input units = {units} must include: Mpc, kpc, or pc')
+                raise ValueError(f'need to specify Mpc or kpc in units = {units}')
 
             if 'physical' in units:
-                distances /= 1 + redshifts  # convert to [kpc[/h] physical]
+                distances /= 1 + redshifts
             elif 'comoving' in units:
-                pass  # leave as is, in [kpc[/h] comoving]
+                pass
             else:
-                raise ValueError(f'input units = {units} must include: comoving or physical')
+                raise ValueError(f'need to specify comoving or physical in units = {units}')
 
         return distances
 

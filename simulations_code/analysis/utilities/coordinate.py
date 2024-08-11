@@ -108,7 +108,7 @@ def get_positions_in_coordinate_system(
             positions_new[:, 2] = position_vectors[:, 2]
         elif system_to == 'spherical':
             # r = sqrt(x^2 + y^2 + z^2)
-            positions_new[:, 0] = np.sqrt(np.sum(position_vectors**2, 1))
+            positions_new[:, 0] = np.sqrt(np.sum(position_vectors ** 2, 1))
             # theta = arccos(z / r)
             positions_new[:, 1] = np.arccos(position_vectors[:, 2] / positions_new[:, 0])
             # phi = arctan(y / x)
@@ -207,7 +207,7 @@ def get_velocities_in_coordinate_system(
         r = position_vectors[:, [0, 1]]
         r_norm = np.zeros(r.shape, position_vectors.dtype)
         # R_total = sqrt(x^2 + y^2)
-        r_total = np.sqrt(np.sum(r**2, 1))
+        r_total = np.sqrt(np.sum(r ** 2, 1))
         masks = np.where(r_total > 0)[0]
         # need to do this way
         r_norm[masks] = np.transpose(r[masks].transpose() / r_total[masks])
@@ -222,7 +222,7 @@ def get_velocities_in_coordinate_system(
         elif system_to == 'spherical':
             # convert position vectors
             position_vectors_norm = np.zeros(position_vectors.shape, position_vectors.dtype)
-            position_vectors_total = np.sqrt(np.sum(position_vectors**2, 1))
+            position_vectors_total = np.sqrt(np.sum(position_vectors ** 2, 1))
             masks = np.where(position_vectors_total > 0)[0]
             # need to do this way
             position_vectors_norm[masks] = np.transpose(
@@ -521,7 +521,7 @@ def get_distances(
     distances = get_position_differences(positions_1 - positions_2, periodic_length)
 
     if total_distance:
-        distances = np.sqrt(np.sum(distances**2, shape_pos))
+        distances = np.sqrt(np.sum(distances ** 2, shape_pos))
 
     if scalefactor is not None:
         if scalefactor > (1 + 1e-4) or scalefactor <= 0:
@@ -587,15 +587,15 @@ def get_velocity_differences(
     total_velocity=False,
 ):
     '''
-    Get relative velocity[s] [km/s] between input velocity vectors.
+    Get relative velocity[s] [km / s] between input velocity vectors.
     If input positions as well, add Hubble flow to velocities.
 
     Parameters
     ----------
     velocity_vectors_1 : array (object number x dimension number)
-        velocity[s] [km/s]
+        velocity[s] [km / s]
     velocity_vectors_2 : array (object number x dimension number)
-        velocity[s]  [km/s]
+        velocity[s]  [km / s]
     position_vectors_1 : array (object number x dimension number)
         position[s] associated with velocity_vector_1 [kpc comoving]
     position_vectors_2 : array (object number x dimension number)
@@ -612,14 +612,14 @@ def get_velocity_differences(
     Returns
     -------
     velocity_difs  : array (object number x dimension number, or object number)
-        velocity differences [km/s]
+        velocity differences [km / s]
     '''
     if np.ndim(velocity_vectors_1) == 1 and np.ndim(velocity_vectors_1) == 1:
         dimension_shape = 0
     else:
         dimension_shape = 1
 
-    velocity_difs = velocity_vectors_1 - velocity_vectors_2  # [km/s]
+    velocity_difs = velocity_vectors_1 - velocity_vectors_2  # [km / s]
 
     if position_vectors_1 is not None and position_vectors_2 is not None:
         # add hubble flow: dr/dt = a * dx/dt + da/dt * x = a(t) * dx/dt + r * H(t)
@@ -629,11 +629,11 @@ def get_velocity_differences(
             / hubble_time
             * get_distances(position_vectors_1, position_vectors_2, periodic_length)
         )
-        vels_hubble *= constant.km_per_kpc / constant.sec_per_Gyr  # [km/s]
+        vels_hubble *= constant.km_per_kpc / constant.sec_per_Gyr  # [km / s]
         velocity_difs += vels_hubble
 
     if total_velocity:
-        velocity_difs = np.sqrt(np.sum(velocity_difs**2, dimension_shape))
+        velocity_difs = np.sqrt(np.sum(velocity_difs ** 2, dimension_shape))
 
     return velocity_difs
 
@@ -741,7 +741,7 @@ def get_center_position(
         distance2s = np.sum(distance2s, 1)
 
         # get particles within distance max
-        masks = distance2s < dist_max**2
+        masks = distance2s < dist_max ** 2
         part_indices_dist = part_indices[masks]
 
         # store particles slightly beyond distance max for next interation
@@ -822,7 +822,7 @@ def get_center_velocity(
         distance2s = np.sum(
             get_position_differences(positions - center_position, periodic_length) ** 2, 1
         )
-        masks *= distance2s < distance_max**2
+        masks *= distance2s < distance_max ** 2
 
     if weights is not None:
         assert velocities.shape[0] == weights.size
@@ -936,10 +936,7 @@ def get_neighbors(
         Say.say(f'built kd-tree for {neig_number} neighbor positions')
 
     neig_distancess, neig_indicess = KDTree.query(
-        center_positions,
-        neig_number_max,
-        distance_upper_bound=neig_distance_max,
-        workers=workers,
+        center_positions, neig_number_max, distance_upper_bound=neig_distance_max, workers=workers,
     )
 
     reach_neig_number_max = np.sum(neig_distancess[:, -1] < np.Inf)
@@ -1003,12 +1000,7 @@ def get_neighbors(
 
 
 def get_fof_groups(
-    positions,
-    linking_length,
-    member_number_min=10,
-    periodic_length=None,
-    ids=None,
-    verbose=True,
+    positions, linking_length, member_number_min=5, periodic_length=None, ids=None, verbose=True,
 ):
     '''
     Get list of FoF groups using input linking_length applied to positions, using k-d tree.
@@ -1050,8 +1042,7 @@ def get_fof_groups(
 
     if verbose:
         Say.say(
-            f'finding FoF groups with >= {member_number_min} members'
-            + f' using linking length = {d_max} kpc'
+            f'finding FoF groups with >= {member_number_min} members using linking length = {d_max}'
         )
         if periodic_length:
             Say.say(f'and using periodic boundary length = {pl}')
@@ -1136,10 +1127,7 @@ def get_fof_groups(
 
     if verbose:
         group_number = len(groups)
-        if group_number > 0:
-            number_in_group = np.concatenate(groups).size
-        else:
-            number_in_group = 0
+        number_in_group = np.concatenate(groups).size
         fraction_in_group = '{:.1f}'.format(100 * number_in_group / position_number)
         Say.say(
             f'got {group_number:,} FoF groups,'
@@ -1183,7 +1171,7 @@ def get_volume_of_convex_hull(positions):
 # --------------------------------------------------------------------------------------------------
 def convert_velocity_redshift(value_name, values, solve_exact=True):
     '''
-    Get velocity/redshift along the line of sight from redshift/velocity [km/s].
+    Get velocity/redshift along the line of sight from redshift/velocity [km / s].
     Independent of cosmology.
 
     Parameters
@@ -1198,7 +1186,7 @@ def convert_velocity_redshift(value_name, values, solve_exact=True):
     Returns
     -------
     array
-        velocities [km/s] or redshifts
+        velocities [km / s] or redshifts
     '''
     if value_name == 'redshift':
         # input redshift, get velocity
@@ -1250,7 +1238,7 @@ def get_position_difs_from_velocity_difs(velocity_difs, hubble_times, redshifts)
     Parameters
     ----------
     velocity_difs : floar or array
-        peculiar velocity[s] [km/s]
+        peculiar velocity[s] [km / s]
     hubble_time : float or array
         hubble time[s] = 1 / H [Gyr]
     redshifts : float or array
@@ -1277,7 +1265,7 @@ def get_positions_in_redshift_space(
     positions : float or array
         actual position[s] [kpc comoving]
     velocities : float or array
-        peculiar velocity[s] [km/s]
+        peculiar velocity[s] [km / s]
     hubble_times : float or array
         hubble time[s] = 1 / H [Gyr]
     periodic_length : float

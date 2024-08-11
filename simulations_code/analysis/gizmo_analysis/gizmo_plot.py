@@ -10,7 +10,7 @@ Unless otherwise noted, all quantities are in (combinations of)
     mass [M_sun]
     position [kpc comoving]
     distance, radius [kpc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 '''
 
@@ -513,7 +513,7 @@ class ImageClass(ut.io.SayClass):
                 hal_indices = ut.array.get_arange(hal['mass'])
 
             if 0 not in hal_indices:
-                hal_indices = np.append(np.array([0], hal_indices.dtype), hal_indices)
+                hal_indices = np.concatenate([[0], hal_indices])
 
             hal_positions = np.array(hal[hal_position_kind][hal_indices])
             if center_position is not None and len(center_position) > 0:
@@ -1877,15 +1877,17 @@ def plot_property_v_distance(
         return pros
 
 
-def test_potential_acceleration_v_distance(
+def test_potential_v_distance(
     parts,
-    species_name='dark',
+    species_name='total',
+    property_name='mass',
+    property_statistic='vel.circ',
     property_log_scale=False,
     property_limits=[0, None],
     weight_property=None,
     distance_limits=[1, 500],
-    distance_bin_width=2,
-    distance_log_scale=False,
+    distance_bin_width=0.05,
+    distance_log_scale=True,
     dimension_number=3,
     rotation=None,
     other_axis_distance_limits=None,
@@ -1900,13 +1902,19 @@ def test_potential_acceleration_v_distance(
     '''
     .
     '''
-    property_stat = 'median'
+    property_name_pot = 'dark'
+    property_stat_pot = 'median'
 
     if isinstance(parts, dict):
         parts = [parts]
 
     center_positions = ut.particle.parse_property(parts, 'position', center_positions, host_index)
-    center_velocities = [center_velocities for _ in center_positions]
+    if 'velocity' in property_name:
+        center_velocities = ut.particle.parse_property(
+            parts, 'velocity', center_velocities, host_index
+        )
+    else:
+        center_velocities = [center_velocities for _ in center_positions]
     part_indicess = ut.particle.parse_property(parts, 'indices', part_indicess)
 
     SpeciesProfile = ut.particle.SpeciesProfileClass(
@@ -1916,37 +1924,15 @@ def test_potential_acceleration_v_distance(
         dimension_number=dimension_number,
     )
 
-    pros_mass = []
+    pros = []
     pros_pot = []
-    pros_acc = []
 
     for part_i, part in enumerate(parts):
-        # get v^2 = GM(<r)/r
-        pro = SpeciesProfile.get_profiles(
-            part,
-            'total',
-            'mass',
-            'vel.circ',
-            weight_property,
-            host_index,
-            center_positions[part_i],
-            center_velocities[part_i],
-            rotation,
-            other_axis_distance_limits,
-            None,
-            part_indicess[part_i],
-        )
-        # convert to v^2 = GM(<r)/r
-        pro['total']['vel.circ'] *= pro['total']['vel.circ']
-
-        pros_mass.append(pro)
-
-        # potential
         pro = SpeciesProfile.get_profiles(
             part,
             species_name,
-            'potential',
-            property_stat,
+            property_name,
+            property_statistic,
             weight_property,
             host_index,
             center_positions[part_i],
@@ -1956,49 +1942,40 @@ def test_potential_acceleration_v_distance(
             None,
             part_indicess[part_i],
         )
-        pots = pro[species_name][property_stat]
-        dists = pro[species_name]['distance']
-        if distance_log_scale:
-            vcirc2s = np.diff(pots) / distance_bin_width * np.log10(np.e)
-        else:
-            vcirc2s = np.diff(pots) / np.diff(dists)
+
+        pro[species_name][property_statistic] *= pro[species_name][property_statistic]
+
+        pros.append(pro)
+
+        pro = SpeciesProfile.get_profiles(
+            part,
+            property_name_pot,
+            'potential',
+            property_stat_pot,
+            weight_property,
+            host_index,
+            center_positions[part_i],
+            center_velocities[part_i],
+            rotation,
+            other_axis_distance_limits,
+            None,
+            part_indicess[part_i],
+        )
+        pots = pro[property_name_pot][property_stat_pot]
+        dists = pro[property_name_pot]['distance']
+        vcircs = np.diff(pots) / distance_bin_width * np.log10(np.e)
+        # vcircs = np.diff(pots) / np.diff(dists)
         dists = dists[:-1] + np.diff(dists)
-        if distance_log_scale is False:
-            vcirc2s *= dists
-        pro[species_name][property_stat] = vcirc2s
-        pro[species_name]['distance'] = dists
+        # vcircs *= dists
+        pro[property_name_pot][property_stat_pot] = vcircs
+        pro[property_name_pot]['distance'] = dists
 
         pros_pot.append(pro)
-
-        # radial acceleration
-        accels = part[species_name].prop('host.acceleration.spherical')
-        part[species_name]['host.acceleration.rad'] = np.abs(accels[:, 0])
-        # convert acceleration from [km/s / Gyr] to [km^s / s^2 / kpc]
-        part[species_name]['host.acceleration.rad'] *= (
-            ut.constant.kpc_per_km * ut.constant.sec_per_Gyr
-        )
-        pro = SpeciesProfile.get_profiles(
-            part,
-            species_name,
-            'host.acceleration.rad',
-            property_stat,
-            weight_property,
-            host_index,
-            center_positions[part_i],
-            center_velocities[part_i],
-            rotation,
-            other_axis_distance_limits,
-            None,
-            part_indicess[part_i],
-        )
-        pro[species_name][property_stat] *= pro[species_name]['distance']  # * 1.0227
-
-        pros_acc.append(pro)
 
     # plot ----------
     _fig, subplot = ut.plot.make_figure(figure_index)
 
-    y_values = [pro_mass['total']['vel.circ'] for pro_mass in pros_mass]
+    y_values = [pro[species_name][property_statistic] for pro in pros]
     _axis_x_limits, _axis_y_limits = ut.plot.set_axes_scaling_limits(
         subplot,
         distance_log_scale,
@@ -2012,138 +1989,55 @@ def test_potential_acceleration_v_distance(
     axis_x_label = 'radius'
     axis_x_label = ut.plot.Label.get_label(axis_x_label, get_words=True)
     subplot.set_xlabel(axis_x_label)
-    subplot.set_ylabel('$v_{{\\rm circ}}^2$')
+
+    label_property_name = 'vel.circ'
+    axis_y_label = ut.plot.Label.get_label(
+        label_property_name, property_statistic, species_name, dimension_number=dimension_number
+    )
+    subplot.set_ylabel(axis_y_label)
 
     colors = ut.plot.get_colors(len(parts))
 
     # plot profiles
-    if len(pros_mass) == 1:
+    if len(pros) == 1:
         alpha = None
         linewidth = 3.5
     else:
         alpha = 0.7
         linewidth = None
 
-    for part_i, pro_mass in enumerate(pros_mass):
+    for part_i, pro in enumerate(pros):
         pro_pot = pros_pot[part_i]
-        pro_acc = pros_acc[part_i]
         color = colors[part_i]
 
-        if part_i == 0:
-            label = parts[part_i].info['simulation.name']
-            label += ' $z={:.1f}$'.format(parts[part_i].snapshot['redshift'])
+        label = parts[part_i].info['simulation.name']
+        if len(pros) > 1 and parts[0].info['simulation.name'] == parts[1].info['simulation.name']:
+            label = '$z={:.1f}$'.format(parts[part_i].snapshot['redshift'])
 
-        masks = pro_mass['total']['vel.circ'] != 0  # plot only non-zero values
+        masks = pro[species_name][property_statistic] != 0  # plot only non-zero values
         subplot.plot(
-            pro_mass['total']['distance'][masks],
-            pro_mass['total']['vel.circ'][masks],
+            pro[species_name]['distance'][masks],
+            pro[species_name][property_statistic][masks],
             color=color,
             alpha=alpha,
             linewidth=linewidth,
             label=label,
         )
 
-        masks = pro_pot[species_name][property_stat] != 0  # plot only non-zero values
+        masks = pro_pot[property_name_pot][property_stat_pot] != 0  # plot only non-zero values
         subplot.plot(
-            pro_pot[species_name]['distance'][masks],
-            pro_pot[species_name][property_stat][masks],
+            pro_pot[property_name_pot]['distance'][masks],
+            pro_pot[property_name_pot][property_stat_pot][masks],
             color=color,
             alpha=alpha,
             linewidth=linewidth,
-            linestyle='dashed',
+            linestyle='--',
             label=label,
         )
-
-        masks = pro_acc[species_name][property_stat] != 0  # plot only non-zero values
-        subplot.plot(
-            pro_acc[species_name]['distance'][masks],
-            pro_acc[species_name][property_stat][masks],
-            color=color,
-            alpha=alpha,
-            linewidth=linewidth,
-            linestyle='dotted',
-            label=label,
-        )
-
-        p = pro_pot[species_name][property_stat]
-        m = pro_mass['total']['vel.circ']
-        a = pro_acc[species_name][property_stat]
-        a_ave = (a[:-1] + a[1:]) / 2
-
-        print('p/m = {:.3f}\n'.format(np.mean(p / m[:-1])))
-
-        print('a/m = {:.3f}'.format(np.mean(a / m)))
-
-        print('a/m = {:.3f}\n'.format(np.mean(a_ave / m[:-1])))
-
-        print('a/p = {:.3f}'.format(np.mean(a[:-1] / p)))
-        print('a/p = {:.3f}'.format(np.mean(a_ave / p)))
 
     ut.plot.make_legends(subplot, time_value=parts[0].snapshot['redshift'])
 
     ut.plot.parse_output(plot_file_name, plot_directory)
-
-    return pros_mass, pros_pot, pros_acc
-
-
-def test_acceleration_v_distance(
-    part,
-    species_names='all',
-    distance_limits=[0, 10],
-    distance_bin_width=1,
-    distance_log_scale=False,
-    host_index=0,
-    plot_file_name=False,
-    plot_directory='.',
-    figure_index=1,
-):
-    '''
-    Test if |a_r| = v_tan^2 / r about center of primary host.
-    '''
-    if species_names == 'all':
-        species_names = list(part.keys())
-    elif np.isscalar(species_names):
-        species_names = [species_names]
-
-    host_name = ut.catalog.get_host_name(host_index)
-
-    DistanceBin = ut.binning.DistanceBinClass(
-        distance_limits,
-        distance_bin_width,
-        log_scale=distance_log_scale,
-    )
-
-    for spec_i, spec_name in enumerate(species_names):
-        pis = ut.array.get_indices(part[spec_name].prop('age'), [0, 0.1])
-
-        accels = part[spec_name].prop('host.acceleration.spherical', pis)
-        arads = np.abs(accels[:, 0])
-        atans = np.sqrt(accels[:, 1] ** 2 + accels[:, 2] ** 2)
-        piis = ut.array.get_indices(atans / arads, [0, 0.1])
-        arads = arads[piis]
-        pis = pis[piis]
-
-        vels = part[spec_name].prop('host.velocity.spherical', pis)
-        vrads = np.abs(vels[:, 0])
-        vtan2s = vels[:, 1] ** 2 + vels[:, 2] ** 2
-        piis = ut.array.get_indices(vrads / np.sqrt(vtan2s), [0, 0.1])
-        vtan2s = vtan2s[piis]
-        arads = arads[piis]
-        pis = pis[piis]
-
-        distances = part[spec_name].prop(f'{host_name}.distance.total', pis)
-        dis = DistanceBin.get_bin_indices(distances)
-
-        ratios = np.zeros(DistanceBin.number)
-        for di, d in enumerate(DistanceBin.mids):
-            piis = np.where(dis == di)[0]
-            arad = np.median(arads[piis])
-            vtan2 = np.median(vtan2s[piis])
-            ratio = arad / (vtan2 / d) / 1.0227
-            ratios[di] = ratio
-            print('{:.1f} {:d} {:.3f}'.format(d, piis.size, ratio))
-
-        print(np.median(ratios[ratios > 0]))
 
 
 def plot_velocity_distribution(
@@ -2725,7 +2619,7 @@ def test_element_to_element_ratio(
                 if part_i == 0:
                     element_ratios = element_ratios_p
                 else:
-                    element_ratios = np.append(element_ratios, element_ratios_p)
+                    element_ratios = np.concatenate((element_ratios, element_ratios_p))
 
             # we do not care about the absolute ratio of abundances, we care about its scatter
             element_ratios /= np.median(element_ratios)
@@ -3583,35 +3477,23 @@ class ISMClass(ut.io.SayClass):
     def plot_velocity_dispersion_v_distance(
         self,
         veldisp,
-        veldisp_2=None,
-        veldisp_3=None,
         species_name='gas',
         distance_limits=[0.003, 2],
         distance_log_scale=True,
         veldisp_limits=[1, 100],
         veldisp_log_scale=True,
-        veldisp_dimen_number=3,
         plot_file_name=False,
         plot_directory='.',
     ):
         '''
         .
         '''
-        part_number = len(veldisp['distance'])
-        selection_number = 1
-        if veldisp_2 is not None:
-            selection_number = 2
-            if veldisp_3 is not None:
-                selection_number = 3
-            part_number = 1
-        distance_limits = np.array(distance_limits) * ut.constant.kilo
-
-        dimen_factor = 1.0
-        if veldisp_dimen_number == 1:
-            dimen_factor /= np.sqrt(3)
+        galaxy_number = len(veldisp['distance'])
+        distances = veldisp['distance'][0] * 1e3
+        distance_limits = np.array(distance_limits) * 1e3
 
         # plot ----------
-        _fig, subplot = ut.plot.make_figure(right=0.94)
+        _fig, subplot = ut.plot.make_figure()
 
         _axis_x_limits, _axis_y_limits = ut.plot.set_axes_scaling_limits(
             subplot,
@@ -3620,118 +3502,47 @@ class ISMClass(ut.io.SayClass):
             None,
             veldisp_log_scale,
             veldisp_limits,
+            veldisp['cum.median.50'],
         )
 
         # subplot.yaxis.set_minor_locator(ticker.AutoMinorLocator(10))
 
-        subplot.set_xlabel('radius of sphere $r$ $\\left[ {{\\rm pc}} \\right]$')
-        axis_y_label = '$\sigma_{\\rm vel,3D}(< r)$ $\\left[ {{\\rm km/s}} \\right]$'
-        if veldisp_dimen_number == 1:
-            axis_y_label = axis_y_label.replace('3D', '1D')
-        subplot.set_ylabel(axis_y_label)
+        subplot.set_xlabel('radius $r$ $\\left[ {{\\rm pc}} \\right]$')
+        subplot.set_ylabel('$\sigma_{\\rm vel,3D}(< r)$ $\\left[ {{\\rm km / s}} \\right]$')
 
-        colors = ut.plot.get_colors(max(part_number, selection_number))
+        colors = ut.plot.get_colors(galaxy_number)
 
-        for pi in range(part_number):
+        for pi in range(galaxy_number):
+            label = veldisp['simulation.name'][pi] + ' median'
             color = colors[pi]
 
-            if selection_number == 1:
-                label = veldisp['simulation.name'][pi]
-                label = label.replace('Msun', '${\\rm M}_\\odot$')
-            else:
-                label = 'all'
-
-            subplot.fill_between(
-                veldisp['distance'][0] * ut.constant.kilo,
-                veldisp['cum.median.16'][pi] * dimen_factor,
-                veldisp['cum.median.84'][pi] * dimen_factor,
-                color=color,
-                alpha=0.25,
-                edgecolor=None,
-            )
-            subplot.plot(
-                veldisp['distance'][0] * ut.constant.kilo,
-                veldisp['cum.median.50'][pi] * dimen_factor,
-                color=color,
-                alpha=0.8,
-                linestyle='-',
-                label=label,
-            )
-
-            """
-            label = veldisp['simulation.name'][pi] + ' average'
             subplot.fill_between(
                 distances,
-                veldisp['cum.average.16'][pi] * dimen_factor,
-                veldisp['cum.average.84'][pi] * dimen_factor,
+                veldisp['cum.median.16'][pi],
+                veldisp['cum.median.84'][pi],
                 color=color,
                 alpha=0.4,
             )
             subplot.plot(
                 distances,
-                veldisp['cum.average.50'][pi] * dimen_factor,
+                veldisp['cum.median.50'][pi],
                 color=color,
                 alpha=0.8,
                 label=label,
-                linestyle='--',
             )
             """
-
-        if veldisp_2 is not None:
-            pi = 0
-            color = colors[1]
-            label = 'cold (T < 100 K)'
+            label = veldisp['simulation.name'][pi] + ' average'
             subplot.fill_between(
-                veldisp_2['distance'][0] * ut.constant.kilo,
-                veldisp_2['cum.median.16'][pi] * dimen_factor,
-                veldisp_2['cum.median.84'][pi] * dimen_factor,
+                distances,
+                veldisp['cum.average.16'][pi],
+                veldisp['cum.average.84'][pi],
                 color=color,
-                alpha=0.25,
-                edgecolor=None,
+                alpha=0.4,
             )
             subplot.plot(
-                veldisp_2['distance'][0] * ut.constant.kilo,
-                veldisp_2['cum.median.50'][pi] * dimen_factor,
-                color=color,
-                alpha=0.8,
-                linestyle='-',
-                label=label,
+                distances, veldisp['cum.average.50'][pi], color=color, alpha=0.8, label=label,
             )
-
-        if veldisp_3 is not None:
-            pi = 0
-            color = colors[2]
-            label = 'star forming'
-            subplot.fill_between(
-                veldisp_3['distance'][0] * ut.constant.kilo,
-                veldisp_3['cum.median.16'][pi] * dimen_factor,
-                veldisp_3['cum.median.84'][pi] * dimen_factor,
-                color=color,
-                alpha=0.25,
-                edgecolor=None,
-            )
-            subplot.plot(
-                veldisp_3['distance'][0] * ut.constant.kilo,
-                veldisp_3['cum.median.50'][pi] * dimen_factor,
-                color=color,
-                alpha=0.8,
-                linestyle='-',
-                label=label,
-            )
-
-        # power law relation
-        ds = np.array([50, 1000])
-        sigs = 5 * dimen_factor * np.ones(ds.size)
-        sigs[1] = sigs[0] * (ds[1] / ds[0]) ** (1 / 2)
-        subplot.plot(
-            ds,
-            sigs,
-            color='black',
-            alpha=0.6,
-            linestyle=':',
-            label='$\\sigma \\propto r^{1/2}$',
-        )
-
+            """
         ut.plot.make_legends(subplot)
 
         if plot_file_name is True or plot_file_name == '':
@@ -5412,9 +5223,9 @@ def get_galaxy_mass_profiles_v_redshift(
         'time': [],  # snapshot time [Gyr]
         'time.lookback': [],  # snapshot lookback time [Gyr]
         'star.position': [],  # position of galaxy (star) center [kpc comoving]
-        'star.velocity': [],  # center-of-mass velocity of stars within R_50 [km s]
+        'star.velocity': [],  # center-of-mass velocity of stars within R_50 [km / s]
         'dark.position': [],  # position of DM center [kpc comoving]
-        'dark.velocity': [],  # center-of-mass velocity of DM within 0.5 * R_200m [km/s]
+        'dark.velocity': [],  # center-of-mass velocity of DM within 0.5 * R_200m [km / s]
         'rotation': [],  # rotation tensor of disk
         'axis.ratios': [],  # axis ratios of disk
         'profile.3d.distance': [],  # distance bins in 3-D [kpc physical]
@@ -5458,9 +5269,7 @@ def get_galaxy_mass_profiles_v_redshift(
             ut.particle.get_center_positions(part, 'dark', weight_property='potential')
         )
         gal['dark.velocity'].append(
-            ut.particle.get_center_velocities_or_accelerations(
-                part, 'velocity', 'dark', distance_max=dark_distance_max
-            )
+            ut.particle.get_center_velocities(part, 'dark', distance_max=dark_distance_max)
         )
 
         # get radius_90 as fiducial
@@ -7510,86 +7319,3 @@ def compare_resolution(
     )
 
     return parts
-
-
-def plot_mass_v_mass_fire3():
-    '''
-    .
-    '''
-
-    fire3_orig = {
-        # m12b_m7e3_MHD_fire3_fireBH_Sep182021_hr_crdiffc690_sdp2e-4_gacc31_fa0.5
-        'm12b_r7100': [2.1e10, 1.33e12],
-        # m12f_m7e3_MHD_fire3_fireBH_Sep182021_hr_crdiffc690_sdp2e-4_gacc31_fa0.5
-        'm12f_r7100': [1.4e10, 1.55e12],
-        # no_mhd_no_bh
-        'm12i_r7100': [1.8e10, 1.12e12],
-        'm12q_r7100': [1.1e10, 1.52e12],
-    }
-
-    fire3_new = {
-        'm12a_r57k': [6.4e10, 2.17e12],
-        'm12d_r57k': [2.5e10, 1.51e12],
-        'm12e_r57k': [6.3e10, 2.6e12],
-        'm12g_r7100': [1.1e11, 2.73e12],
-        'm12j_r7100': [2.1e10, 1.06e12],
-        'm12k_r57k': [6.0e10, 2.38e12],
-        'm12n_r7100': [4.6e10, 1.65e12],
-        'm12u_r28k': [8.4e9, 7.06e11],
-        'm12x_r3500': [2.82e9, 6.19e11],
-    }
-
-    # plot ----------
-    _fig, subplot = ut.plot.make_figure(1)
-
-    _axis_x_limits, _axis_y_limits = ut.plot.set_axes_scaling_limits(
-        subplot,
-        False,
-        [0.5e12, 3.2e12],
-        None,
-        True,
-        [2e9, 1.4e11],
-    )
-
-    subplot.set_xlabel('$M_{200m} [M_\odot]$')
-    subplot.set_ylabel('$M_{star}(< 20 kpc) [M_\odot]$')
-
-    subplot.xaxis.set_minor_locator(ticker.AutoMinorLocator(10))
-
-    colors = ut.plot.get_colors(9)
-
-    for gal_i, gal_name in enumerate(fire3_orig):
-        star_mass = fire3_orig[gal_name][0]
-        halo_mass = fire3_orig[gal_name][1]
-        label = gal_name.replace('_r7100', '')
-
-        subplot.plot(
-            halo_mass,
-            star_mass,
-            color=colors[gal_i],
-            alpha=0.7,
-            label=label,
-            marker='*',
-            markersize=6,
-        )
-        # add name near point
-        subplot.text(halo_mass * 1.02, star_mass * 1.02, label, fontsize=10)
-
-    for gal_i, gal_name in enumerate(fire3_new):
-        star_mass = fire3_new[gal_name][0]
-        halo_mass = fire3_new[gal_name][1]
-        label = gal_name.replace('_r7100', '')
-
-        subplot.plot(
-            halo_mass,
-            star_mass,
-            color=colors[gal_i],
-            alpha=0.7,
-            label=label,
-            marker='o',
-            markersize=6,
-        )
-        subplot.text(halo_mass * 1.02, star_mass * 1.02, label, fontsize=10)
-
-    # ut.plot.make_legends(subplot)
-    ut.plot.parse_output()

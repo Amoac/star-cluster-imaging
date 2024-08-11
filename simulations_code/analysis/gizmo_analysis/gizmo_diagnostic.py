@@ -144,14 +144,12 @@ class RuntimeClass(ut.io.SayClass):
         def get_scalefactor_string(scalefactor):
             if scalefactor == 1:
                 scalefactor_string = '1'
-            elif (10 * scalefactor) % 1 < 0.1:
+            elif np.abs(scalefactor % 0.1) < 0.01:
                 scalefactor_string = '{:.1f}'.format(scalefactor)
-            elif (100 * scalefactor % 1) < 0.1:
+            elif np.abs(scalefactor % 0.01) < 0.001:
                 scalefactor_string = '{:.2f}'.format(scalefactor)
-            elif (1000 * scalefactor % 1) < 0.1:
-                scalefactor_string = '{:.3f}'.format(scalefactor)
             else:
-                scalefactor_string = '{:.4f}'.format(scalefactor)
+                scalefactor_string = '{:.3f}'.format(scalefactor)
             return scalefactor_string
 
         if scalefactors is None or (not np.isscalar(scalefactors) and len(scalefactors) == 0):
@@ -169,9 +167,9 @@ class RuntimeClass(ut.io.SayClass):
                 0.7,
                 0.8,
                 0.9,
-                0.9999,
                 1.0,
             ]
+        scalefactors = ut.array.arrayize(scalefactors)
 
         path_file_name = (
             ut.io.get_path(simulation_directory)
@@ -216,7 +214,7 @@ class RuntimeClass(ut.io.SayClass):
             core_number = mpi_number * omp_number
             print_string = f'# core = {core_number} (mpi = {mpi_number}, omp = {omp_number})'
             if machine_name is not None:
-                node_number = int(round(core_number / self.machine[machine_name]))
+                node_number = int(round(mpi_number / self.machine[machine_name]))
                 print_string = f'{machine_name}\n' + print_string + f', node = {node_number}'
             print(print_string)
         else:
@@ -225,7 +223,6 @@ class RuntimeClass(ut.io.SayClass):
         cpu_times = wall_times * core_number
 
         # sanity check - simulation might not have run to all input scale-factors
-        scalefactors = ut.array.arrayize(scalefactors)
         scalefactors = scalefactors[: wall_times.size]
         redshifts = 1 / scalefactors - 1
 

@@ -13,7 +13,7 @@ Units
     position [kpc comoving]
     distance [kpc physical]
     radius [pc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 
 ----------
@@ -35,15 +35,13 @@ Default/stored properties in group catalog
     'number' : total number of member particles [M_sun]
     'mass' : total mass of members particles [M_sun]
     'position' or 'host.distance.principal' :
-        3-D distance (Cartesian) of COM wrt center of primary host,
-        along the host's principal axes [kpc physical]
+        3-D COM artesian distance wrt center of primary host along its principal axes [kpc physical]
     'velocity' or 'host.velocity.principal' :
-        3-D velocity (Cartesian) of COM wrt center of primary host,
-        along the host's principal axes [km/s]
+        3-D COM velocity wrt center of primary host along its principal axes [km / s]
     'radius.100' : maximum distance of member particles [pc physical]
     'radius.90' : distance that encloses 90% of member mass [pc physical]
     'radius.50' : istance that encloses 50% of member mass [pc physical]
-    'vel.std' : 68% width of the mass-weighted velocity distribution of members [km/s]
+    'vel.std' : 68% width of the mass-weighted velocity distribution of members [km / s]
     'temperature' : mass-weighted temperature of members [K]
 
 ----------
@@ -206,7 +204,7 @@ class GroupDictionaryClass(dict):
 
         # velocity dispersion along 1 dimension
         if 'vel.' in property_name and '.1d' in property_name:
-            return self.prop(property_name.replace('.1d', ''), indices) / np.sqrt(3)
+            values = self.prop(property_name.replace('.1d', ''), indices) / np.sqrt(3)
 
         # distance/velocity wrt center of a primary host
         if 'host' in property_name:
@@ -258,7 +256,7 @@ class GroupDictionaryClass(dict):
 
     def get_indices(
         self,
-        particle_number_min=5,
+        particle_number_min=6,
         mass_limits=[1, None],
         density_limits=[None, None],
         host_distance_limits=None,
@@ -329,7 +327,7 @@ class IOClass(ut.io.SayClass):
         '''
         .
         '''
-        self.file_name_base = '{}_group.{:.0f}pc_{:03d}'
+        self.file_name_base = '{}_group.fof.{:.0f}pc_{:03d}'
         self.species_names = ['gas', 'star', 'dark']
         self.particle_properties_read = [
             'position',
@@ -401,8 +399,8 @@ class IOClass(ut.io.SayClass):
 
         # transfer meta-data from particle catalog
         grp.info = dict(part_spec.info)
-        grp.info['catalog.kind'] = f'{species_name}.group'
-        grp.info['species'] = species_name
+        grp.info['catalog.kind'] = f'{species_name}.group.fof'
+        grp.info['fof.species'] = species_name
         grp.info['fof.linking.length'] = linking_length
         for prop_name in property_select:
             grp.info['fof.' + prop_name] = property_select[prop_name]
@@ -422,7 +420,6 @@ class IOClass(ut.io.SayClass):
         simulation_directory=None,
         group_directory=None,
         all_snapshot_list=True,
-        combine_catalogs=False,
         simulation_name='',
     ):
         '''
@@ -450,8 +447,6 @@ class IOClass(ut.io.SayClass):
         all_snapshot_list : bool
             if reading multiple snapshots, whether to create a list of group catalogs of length
             equal to all snapshots in simulation (so group catalog index = snapsht index)
-        combine_catalogs : bool
-            whether to combine catalogs at different snapshots into single catalog across snapshots
         simulation_name : string
             name of simulation to store for future identification
 
@@ -476,6 +471,8 @@ class IOClass(ut.io.SayClass):
         Snapshot = ut.simulation.read_snapshot_times(simulation_directory)
         snapshot_indices = Snapshot.parse_snapshot_values(snapshot_value_kind, snapshot_values)
 
+        grps = [[] for _ in Snapshot['index']]  # list of group catalogs across all snapshots
+
         # get names of all existing group files
         path_file_names, file_snapshot_indices = self._get_group_file_names_and_indices(
             species_name, linking_length, simulation_directory + group_directory, snapshot_indices
@@ -487,9 +484,6 @@ class IOClass(ut.io.SayClass):
                     simulation_directory + group_directory.lstrip('./')
                 )
             )
-
-        if len(file_snapshot_indices) > 1:
-            grps = [[] for _ in Snapshot['index']]  # list of group catalogs across all snapshots
 
         # read group catalog at all input snapshots
         for _path_file_name, snapshot_index in zip(path_file_names, file_snapshot_indices):
@@ -517,31 +511,7 @@ class IOClass(ut.io.SayClass):
                     print()
 
         if len(file_snapshot_indices) > 1 and not all_snapshot_list:
-            # return list of only non-null catalogs, so catalog list index is not snapshot index
             grps = [grp for grp in grps if len(grp)]
-
-        if combine_catalogs:
-            # combine all catalogs across all snapshots into a single catalog
-            grp_all = None
-            # start with latest snapshot, going back in time
-            for grp in grps[::-1]:
-                if len(grp):
-                    snapshots = np.zeros(grp['mass'].size, dtype=np.int32) + grp.snapshot['index']
-                    if grp_all is None:
-                        grp_all = grp
-                        grp_all['snapshot'] = snapshots
-                    else:
-                        for prop_name in grp:
-                            if np.ndim(grp[prop_name]) == 1:
-                                grp_all[prop_name] = np.append(grp_all[prop_name], grp[prop_name])
-                            elif np.ndim(grp[prop_name]) == 2:
-                                grp_all[prop_name] = np.append(
-                                    grp_all[prop_name].T, grp[prop_name].T, axis=1
-                                ).T
-                            else:
-                                raise ValueError(f'! unsure how to concatenate {prop_name}')
-                        grp_all['snapshot'] = np.append(grp_all['snapshot'], snapshots)
-            grps = grp_all
 
         return grps
 
@@ -556,7 +526,7 @@ class IOClass(ut.io.SayClass):
         verbose=True,
     ):
         '''
-        Read/write a catalog of groups at a single snapshot to/from HDF5 file.
+        Read/write a catalog of groups at a snapshot to/from HDF5 file.
         If reading, return as dictionary.
 
         Parameters
@@ -589,7 +559,7 @@ class IOClass(ut.io.SayClass):
             assert linking_length > 0
         else:
             # writing
-            species_name = grp.info['species']
+            species_name = grp.info['fof.species']
             snapshot_index = grp.snapshot['index']
             linking_length = grp.info['fof.linking.length']
 
@@ -689,8 +659,8 @@ class IOClass(ut.io.SayClass):
                 header['w'],
             )
 
-            grp.info['catalog.kind'] = f'{species_name}.group'
-            grp.info['species'] = species_name
+            grp.info['catalog.kind'] = f'{species_name}.group.fof'
+            grp.info['fof.species'] = species_name
             grp.info['simulation.name'] = ''
 
             self.say(
@@ -902,9 +872,6 @@ class IOClass(ut.io.SayClass):
         )
 
         if snapshot_indices is not None:
-            if np.isscalar(snapshot_indices):
-                snapshot_indices = [snapshot_indices]
-
             path_file_names = []
             file_indices = []
             for file_i, file_index in enumerate(file_indices_all):
@@ -912,6 +879,8 @@ class IOClass(ut.io.SayClass):
                     path_file_names.append(path_file_names_all[file_i])
                     file_indices.append(file_index)
 
+            if np.isscalar(snapshot_indices):
+                snapshot_indices = [snapshot_indices]
             if len(snapshot_indices) > 1 and len(snapshot_indices) != len(path_file_names):
                 self.say(
                     '! input {} snapshot indices but found only {} group catalog files'.format(
@@ -929,15 +898,12 @@ class IOClass(ut.io.SayClass):
         return path_file_names, file_indices
 
 
-IO = IOClass()
-
-
 # --------------------------------------------------------------------------------------------------
 # analysis and plotting
 # --------------------------------------------------------------------------------------------------
 def print_properties(grp, grp_indices, properties=None, digits=3):
     '''
-    Print useful properties of group[s].
+    Print useful properties of groups[s].
 
     Parameters
     ----------
@@ -1263,7 +1229,7 @@ def plot_number_v_distance(
     # if distance_log_scale:
     #    subplot.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter('%.0f'))
 
-    species_name = grps[0].info['species']
+    species_name = grps[0].info['fof.species']
     if 'gas' in species_name:
         object_kind = 'GMC'
     elif 'star' in species_name:

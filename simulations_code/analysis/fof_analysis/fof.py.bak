@@ -1,0 +1,438 @@
+#ORIGINAL VERSION - NO SPACING MODIFICATIONS 12/10/2019
+
+#to call: import fof  (or reload(fof))
+#indices, xcm, ycm, zcm, mtot, grpid, r_90, r_max = fof.find(x,y,z,b=1)
+#here, indices[0] are the indices that correspond to grpid 1, indices[1] are the indices that correspond to grpid 2, etc. 
+
+import pdb
+import numpy as np
+import time
+import functools
+
+#def cmp (which was depreciated in python 3.0
+try:
+    cmp
+except NameError:
+    def cmp(x, y):
+        if x < y:
+            return -1
+        elif x > y:
+           return 1
+        else:
+            return 0
+
+
+#this function is for organzing group list later
+def select(test,list):
+   selected = []
+   for item in list:
+      if test(item) == True:
+         selected.append(item)
+   return selected
+
+def find(x,y,z,mass=[-99], b=1, ncut=10):
+
+   print('linking length ', b)
+   print('min number particles in group ', ncut)
+   
+   #get time right before code runs
+   t0 = time.time()                         
+
+   #initiate an empty list for group id
+   id_grp=[]
+   groups = np.zeros((len(x),1)).tolist() #populate list with lists of all [0.0]
+   id = np.arange(0, len(x), 1)
+      
+   #we are going to keep id a fixed list
+   particles=id #an index list to whittle down over iterations
+   
+   while len(particles)>0:
+      index = particles[0] #take the first index to check
+      ## remove the index to check from the pending index list
+      particles = np.delete(particles, 0) #0 is index to remove
+      groups[index]=[index] #!!not sure abt this step: grp[] set to index why?
+      
+      dx=x-x[index] #for choosen pt, find the distance to every other pt
+      dy=y-y[index]
+      dz=z-z[index]
+      dr=np.sqrt(dx**2.+dy**2.+dz**2.)
+
+      id_to_look = np.where(dr<b)[0].tolist() #make a list of indices w/i ll
+      id_to_look.remove(index) #remove the one we are working on (in a list)
+      nlist = id_to_look #these are the indices that belong to given group
+
+      ## remove all the neighbors from the particles list
+      for i in nlist:
+         if (i in particles):
+            particles = np.delete(particles, np.where(particles == i))
+   
+      groups[index]=groups[index]+nlist #this makes the grp[0] a list of indices
+      new_nlist = nlist #let's iterate more to make sure grp[0] is complete
+      while len(new_nlist)>0:
+         index_n = new_nlist[0] #first neighbor index in confirmed group
+         new_nlist.remove(index_n) #get rid of self - don't need to confirm
+      
+         dx=x-x[index_n]
+         dy=y-y[index_n]
+         dz=z-z[index_n]
+         dr=np.sqrt(dx**2.+dy**2.+dz**2.) #make a list of indices w/i ll
+         id_to_look = np.where(dr<b)[0].tolist()
+         id_to_look = list(set(id_to_look) & set(particles)) #set: uniq unorder list
+         nlist = id_to_look
+         if (len(nlist)!=0):
+            groups[index]=groups[index]+nlist #add to the list from earlier
+            new_nlist=new_nlist+nlist #concat longer list of ids in group
+            
+            for k in nlist:
+               particles = np.delete(particles, np.where(particles == k))
+
+   groups=select(lambda x: sum(x) > 0, groups) #issues here -- it is def above
+   #pdb.set_trace()
+   groups.sort(key=functools.cmp_to_key(lambda x, y: cmp(len(x), len(y))))
+   #groups.sort(lambda x,y: cmp(len(x),len(y)))
+   groups.reverse()
+
+   print(time.time() - t0, "seconds")
+
+   #cull out groups that are below particle cut
+   list_of_lists = []
+   count = 0
+   for list_array in groups:
+      if len(list_array) >= ncut:
+         list_of_lists.append(list_array)
+         count=count+1 
+   
+   outgrp = list_of_lists
+   
+   if mass[0] < 0:
+      mass=[]
+      for i in range(len(x)):
+         mass.append(1)
+
+   x_cm = []
+   y_cm = []
+   z_cm = []
+   m_tot = []
+   grp_id = []
+   r_90 = []
+   x_90 = []
+   y_90 = []
+   z_90 = []
+   r_50 = []
+   x_50 = []
+   y_50 = []
+   z_50 = []
+   r_max = []
+   x_max = []
+   y_max = []
+   z_max = []
+
+   #iterate over each group to get statistics
+   for i in np.arange(0,count,1):
+      #total mass of group
+      total_mass=sum([mass[j] for j in groups[i]])
+      #center of mass
+      xcm = (sum([mass[j]*x[j] for j in groups[i]])/total_mass)
+      ycm = (sum([mass[j]*y[j] for j in groups[i]])/total_mass)
+      zcm = (sum([mass[j]*z[j] for j in groups[i]])/total_mass)
+      x_cm.append(xcm)
+      y_cm.append(ycm)
+      z_cm.append(zcm)
+      m_tot.append(total_mass)
+      grp_id.append(i+1)
+
+      #distance from center of mass
+      dummy_x_cm = []
+      dummy_y_cm = []
+      dummy_z_cm = []
+      
+      for j in groups[i]: #these are the indices to iterate over
+         xpos = x[j]
+         ypos = y[j]
+         zpos = z[j]
+         
+         if xpos > 0 and xcm > 0:
+            if xcm > xpos:
+               xdiff = xcm - xpos
+            else:
+               xdiff = xpos - xcm
+         if xpos < 0 and xcm > 0:
+            xdiff = xcm + np.abs(xpos)
+         if xpos > 0 and xcm < 0:
+            xdiff = xpos + np.abs(xcm)
+         if xpos < 0 and xcm < 0:
+            if xcm > xpos: #xcm=-.1 xpos=-.2 xdiff=.1
+               xdiff = np.abs(xpos) - np.abs(xcm)
+            else: #xpos=-.1 xcm=-.3 xdiff = .2
+               xdiff = np.abs(xcm) - np.abs(xpos)
+
+         if ypos > 0 and ycm > 0:
+            if ycm > ypos:
+               ydiff = ycm - ypos
+            else:
+               ydiff = ypos - ycm
+         if ypos < 0 and ycm > 0:
+            ydiff = ycm + np.abs(ypos)
+         if ypos > 0 and ycm < 0:
+            ydiff = ypos + np.abs(ycm)
+         if ypos < 0 and ycm < 0:
+            if ycm > ypos:
+               ydiff = np.abs(ypos) - np.abs(ycm)
+            else: 
+               ydiff = np.abs(ycm) - np.abs(ypos)
+
+         if zpos > 0 and zcm > 0:
+            if zcm > zpos:
+               zdiff = zcm - zpos
+            else:
+               zdiff = zpos - zcm
+         if zpos < 0 and zcm > 0:
+            zdiff = zcm + np.abs(zpos)
+         if zpos > 0 and zcm < 0:
+            zdiff = zpos + np.abs(zcm)
+         if zpos < 0 and zcm < 0:
+            if zcm > zpos:
+               zdiff = np.abs(zpos) - np.abs(zcm)
+            else: 
+               zdiff = np.abs(zcm) - np.abs(zpos)
+               
+         dummy_x_cm.append(xdiff)
+         dummy_y_cm.append(ydiff)
+         dummy_z_cm.append(zdiff)
+         
+      #dummy_x_cm = [x[j]-xcm for j in groups[i]]
+      #dummy_y_cm = [y[j]-ycm for j in groups[i]]
+      #dummy_z_cm = [z[j]-zcm for j in groups[i]]
+
+      dummy_x_cm = np.array(dummy_x_cm)
+      dummy_y_cm = np.array(dummy_y_cm)
+      dummy_z_cm = np.array(dummy_z_cm)
+      #radial distance from center of mass
+      dr = np.sqrt(dummy_x_cm**2.+dummy_y_cm**2.+dummy_z_cm**2.)
+      dr = dr.flatten() #flattened
+      #max distance from center of mass
+      drmax = max(dr)
+      maxindex = np.where(dr == drmax)
+      xmax = dummy_x_cm[maxindex]
+      ymax = dummy_y_cm[maxindex]
+      zmax = dummy_z_cm[maxindex]
+      
+      #sanity check for sorting and using indices from sort
+      #       dr = [6,4,7,3,8]
+      #     mass = [1,2,3,4,5]
+      #      dr  = np.array(dr)
+      #     mass = np.array(mass)
+      #  sortind = np.argsort(dr)
+      # results in:
+      #  dr_sort = [3,4,6,7,8]
+      #  sortind = [3,1,0,2,4]
+      #mass_sort = [4,2,1,3,5]
+      
+      mass_unsort = [mass[j] for j in groups[i]] #flattened
+      mass_unsort = np.array(mass_unsort)
+
+      x_unsort = [x[j] for j in groups[i]] #flattened
+      y_unsort = [y[j] for j in groups[i]] 
+      z_unsort = [z[j] for j in groups[i]] 
+
+      x_unsort = np.array(x_unsort)
+      y_unsort = np.array(y_unsort)
+      z_unsort = np.array(z_unsort)
+      
+      sortind = np.argsort(dr) #index sorted by increasing dr
+      dr_sort = dr[sortind]
+      
+      mass_sort = mass_unsort[sortind]
+      x_sort = x_unsort[sortind]
+      y_sort = y_unsort[sortind]
+      z_sort = z_unsort[sortind]
+
+      dr_sort = np.array(dr_sort)
+      mass_sort = np.array(mass_sort)
+      x_sort = np.array(x_sort)
+      y_sort = np.array(y_sort)
+      z_sort = np.array(z_sort)
+      
+      mass_sum = 0
+      mass_arr = []
+
+      for k in mass_sort:
+         mass_sum = mass_sum + k
+         mass_arr.append(mass_sum)
+
+      mass_arr = np.array(mass_arr)   
+      mass_arr = mass_arr / (1.*total_mass)
+
+      ind90 = np.where(mass_arr >= .9) #this is an array of indices
+      ind50 = np.where(mass_arr >= .5)
+      
+      #pdb.set_trace()
+      
+      if len(ind90[0]) == 1:   #only 1 entry >= 90% --> 100%.  append nearest entry
+         
+          first = ind90[0][0] - 1
+          second = ind90[0][0]
+          
+          temp_dr_gt_90 = dr_sort[[first, second]]
+          temp_x_gt_90  = x_sort[[first, second]]
+          temp_y_gt_90  = y_sort[[first, second]]
+          temp_z_gt_90  = z_sort[[first, second]]
+      else:
+          temp_dr_gt_90 = dr_sort[ind90] #array of dr 
+          temp_x_gt_90 = x_sort[ind90]
+          temp_y_gt_90 = y_sort[ind90]
+          temp_z_gt_90 = z_sort[ind90]
+
+          temp_x_gt_90.flatten()
+          temp_y_gt_90.flatten()
+          temp_z_gt_90.flatten()
+      
+      findex90 = np.where(temp_dr_gt_90 == min(temp_dr_gt_90))
+      dr90 = temp_dr_gt_90[findex90][0]
+
+      dummy_x_90 = temp_x_gt_90[findex90][0]
+      dummy_y_90 = temp_y_gt_90[findex90][0]
+      dummy_z_90 = temp_z_gt_90[findex90][0]
+
+      #need to know the positive difference between cm and 90
+      
+      if xcm > 0 and dummy_x_90 > 0:
+         if xcm > dummy_x_90:
+            x90 = xcm - dummy_x_90 #xcm = .5 dummy = .2 x90=.3
+         else:
+            x90 = dummy_x_90 - xcm #xcm = .1 dummy = .4 x90=.3
+      if xcm > 0 and dummy_x_90 < 0:
+         x90 = xcm + np.abs(dummy_x_90) #xcm = .1 dummy = -.3 x90=.4
+      if xcm < 0 and dummy_x_90 > 0:
+         x90 = dummy_x_90 + np.abs(xcm) #xcm = -.1 dummy = .1 x90=.2
+      if xcm < 0 and dummy_x_90 < 0:
+         if xcm > dummy_x_90:
+            x90 = np.abs(dummy_x_90) - np.abs(xcm) #xcm = -.1 dummy = -.2 x90=.1
+         else:
+            x90 = np.abs(xcm) - np.abs(dummy_x_90) #xcm = -.2 dummy = -.1 x90=.1
+                  
+      if ycm > 0 and dummy_y_90 > 0:
+         if ycm > dummy_y_90:
+            y90 = ycm - dummy_y_90 
+         else:
+            y90 = dummy_y_90 - ycm 
+      if ycm > 0 and dummy_y_90 < 0:
+         y90 = ycm + np.abs(dummy_y_90) 
+      if ycm < 0 and dummy_y_90 > 0:
+         y90 = dummy_y_90 + np.abs(ycm) 
+      if ycm < 0 and dummy_y_90 < 0:
+         if ycm > dummy_y_90:
+            y90 = np.abs(dummy_y_90) - np.abs(ycm) 
+         else:
+            y90 = np.abs(ycm) - np.abs(dummy_y_90)
+            
+      if zcm > 0 and dummy_z_90 > 0:
+         if zcm > dummy_z_90:
+            z90 = zcm - dummy_z_90 
+         else:
+            z90 = dummy_z_90 - zcm 
+      if zcm > 0 and dummy_z_90 < 0:
+         z90 = zcm + np.abs(dummy_z_90) 
+      if zcm < 0 and dummy_z_90 > 0:
+         z90 = dummy_z_90 + np.abs(zcm) 
+      if zcm < 0 and dummy_z_90 < 0:
+         if zcm > dummy_z_90:
+            z90 = np.abs(dummy_z_90) - np.abs(zcm) 
+         else:
+            z90 = np.abs(zcm) - np.abs(dummy_z_90)
+      
+      r_90.append(dr90)
+      x_90.append(x90)
+      y_90.append(y90)
+      z_90.append(z90)
+      r_max.append(drmax)
+      x_max.append(xmax) 
+      y_max.append(ymax)
+      z_max.append(zmax)
+
+      if len(ind50[0]) == 1:   #only 1 entry >= 50% --> 100%.  append nearest entry
+         
+          first = ind50[0][0] - 1
+          second = ind50[0][0]
+          
+          temp_dr_gt_50 = dr_sort[[first, second]]
+          temp_x_gt_50  = x_sort[[first, second]]
+          temp_y_gt_50  = y_sort[[first, second]]
+          temp_z_gt_50  = z_sort[[first, second]]
+      else:
+          temp_dr_gt_50 = dr_sort[ind50] #array of dr 
+          temp_x_gt_50 = x_sort[ind50]
+          temp_y_gt_50 = y_sort[ind50]
+          temp_z_gt_50 = z_sort[ind50]
+
+          temp_x_gt_50.flatten()
+          temp_y_gt_50.flatten()
+          temp_z_gt_50.flatten()
+      
+      findex50 = np.where(temp_dr_gt_50 == min(temp_dr_gt_50))
+      dr50 = temp_dr_gt_50[findex50][0]
+
+      dummy_x_50 = temp_x_gt_50[findex50][0]
+      dummy_y_50 = temp_y_gt_50[findex50][0]
+      dummy_z_50 = temp_z_gt_50[findex50][0]
+
+      #need to know the positive difference between cm and 50
+      
+      if xcm > 0 and dummy_x_50 > 0:
+         if xcm > dummy_x_50:
+            x50 = xcm - dummy_x_50 #xcm = .5 dummy = .2 x90=.3
+         else:
+            x50 = dummy_x_50 - xcm #xcm = .1 dummy = .4 x90=.3
+      if xcm > 0 and dummy_x_50 < 0:
+         x50 = xcm + np.abs(dummy_x_50) #xcm = .1 dummy = -.3 x90=.4
+      if xcm < 0 and dummy_x_50 > 0:
+         x50 = dummy_x_50 + np.abs(xcm) #xcm = -.1 dummy = .1 x90=.2
+      if xcm < 0 and dummy_x_50 < 0:
+         if xcm > dummy_x_50:
+            x50 = np.abs(dummy_x_50) - np.abs(xcm) #xcm = -.1 dummy = -.2 x90=.1
+         else:
+            x50 = np.abs(xcm) - np.abs(dummy_x_50) #xcm = -.2 dummy = -.1 x90=.1
+                  
+      if ycm > 0 and dummy_y_50 > 0:
+         if ycm > dummy_y_50:
+            y50 = ycm - dummy_y_50 
+         else:
+            y50 = dummy_y_50 - ycm 
+      if ycm > 0 and dummy_y_50 < 0:
+         y50 = ycm + np.abs(dummy_y_50) 
+      if ycm < 0 and dummy_y_50 > 0:
+         y50 = dummy_y_50 + np.abs(ycm) 
+      if ycm < 0 and dummy_y_50 < 0:
+         if ycm > dummy_y_50:
+            y50 = np.abs(dummy_y_50) - np.abs(ycm) 
+         else:
+            y50 = np.abs(ycm) - np.abs(dummy_y_50)
+            
+      if zcm > 0 and dummy_z_50 > 0:
+         if zcm > dummy_z_50:
+            z50 = zcm - dummy_z_50 
+         else:
+            z50 = dummy_z_50 - zcm 
+      if zcm > 0 and dummy_z_50 < 0:
+         z50 = zcm + np.abs(dummy_z_50) 
+      if zcm < 0 and dummy_z_50 > 0:
+         z50 = dummy_z_50 + np.abs(zcm) 
+      if zcm < 0 and dummy_z_50 < 0:
+         if zcm > dummy_z_50:
+            z50 = np.abs(dummy_z_50) - np.abs(zcm) 
+         else:
+            z50 = np.abs(zcm) - np.abs(dummy_z_50)
+      
+      r_50.append(dr50)
+      x_50.append(x50)
+      y_50.append(y50)
+      z_50.append(z50)
+      
+      #pdb.set_trace()
+      
+   print('number of groups', max(grp_id))
+   print('max number in a group', len(outgrp[0]))
+   
+   return(outgrp, x_cm, y_cm, z_cm, m_tot, grp_id, r_90, r_50, r_max)
+         
+#pdb.set_trace()

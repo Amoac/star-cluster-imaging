@@ -11,7 +11,7 @@ Units: unless otherwise noted, all quantities are in (combinations of):
     mass [M_sun]
     position [kpc comoving]
     distance, radius [kpc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 '''
 
@@ -527,12 +527,13 @@ class ParticlePointerClass(ut.io.SayClass):
         '''
         Snapshot = ut.simulation.read_snapshot_times(self.simulation_directory)
 
+        if isinstance(snapshot_indices, int):
+            snapshot_indices = [snapshot_indices]
+
         # parse list of snapshot indices to assign
-        if isinstance(snapshot_indices, str) or snapshot_indices is None:
+        if snapshot_indices == 'all' or snapshot_indices is None or len(snapshot_indices) == 0:
             snapshot_indices = Snapshot['index']
         else:
-            if isinstance(snapshot_indices, int):
-                snapshot_indices = [snapshot_indices]
             snapshot_indices = np.array(snapshot_indices)
 
         # parse reference snapshot (typically z = 0)
@@ -658,12 +659,7 @@ class ParticlePointerClass(ut.io.SayClass):
             part_z_indices = np.arange(part_z[spec_name][self.id_name].size)
             part_z_total_indices = part_z_indices + species_index_offset
             part_z_ids = part_z[spec_name][self.id_name]
-            if self.id_child_name in part_z[spec_name]:
-                part_z_cids = part_z[spec_name][self.id_child_name]
-            else:
-                # particle catalog does not have child ids
-                self.say(f'! {spec_name} particles do not have id.child, tracking affected')
-                part_z_cids = False
+            part_z_cids = part_z[spec_name][self.id_child_name]
 
             # get particle indices at z0 within each species dictionary
             part_z0_indices, part_z0_species = part_z0.get_pointers_from_ids(
@@ -968,7 +964,7 @@ class ParticleCoordinateClass(ut.io.SayClass):
             for host_i, host_velocity in enumerate(part.host['velocity']):
                 self.say(f'host{host_i + 1} velocity = (', end='')
                 ut.io.print_array(host_velocity, '{:.1f}', end='')
-                print(') [km/s]')
+                print(') [km / s]')
 
             for host_i, host_axis_ratios in enumerate(part.host['axis.ratios']):
                 self.say(f'host{host_i + 1} axis ratios = (', end='')
@@ -1333,7 +1329,7 @@ class ParticleCoordinateClass(ut.io.SayClass):
                         )
 
                     elif 'velocity' in prop_name:
-                        # 3-D velocity wrt host in simulation's cartesian coordinates [km/s]
+                        # 3-D velocity wrt host in simulation's cartesian coordinates [km / s]
                         coordinates = ut.coordinate.get_velocity_differences(
                             part_z[self.species_name]['velocity'][part_z_indices],
                             part_z.host['velocity'][host_i],

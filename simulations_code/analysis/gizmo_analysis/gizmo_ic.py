@@ -10,7 +10,7 @@ Units: unless otherwise noted, all quantities are in (combinations of):
     mass [M_sun]
     position [kpc comoving]
     distance, radius [kpc physical]
-    velocity [km/s]
+    velocity [km / s]
     time [Gyr]
 '''
 

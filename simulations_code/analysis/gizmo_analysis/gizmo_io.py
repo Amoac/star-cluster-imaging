@@ -20,8 +20,8 @@ Unless otherwise noted, this package converts all quantities to (combinations of
     elemental abundance [linear mass fraction]
 
 with these special cases
-    velocity [km/s]
-    acceleration [km/s / Gyr]
+    velocity [km / s]
+    acceleration [km / s^2]
     rates (star formation, cooling, accretion): [M_sun / yr]
     metallicity (if converted from stored massfraction)
         [log10(mass_fraction / mass_fraction_solar)], using Asplund et al 2009 for Solar
@@ -64,10 +64,9 @@ For example:
 All particle species have the following properties:
     'id' : ID (indexing starts at 0)
     'position' : 3-D position, along simulations's (arbitrary) x,y,z grid [kpc comoving]
-    'velocity' : 3-D velocity, along simulations's (arbitrary) x,y,z grid [km/s physical/peculiar]
-    'acceleration' : 3-D acceleration, along simulations's (arbitrary) x,y,z grid [km/s / Gyr]
+    'velocity' : 3-D velocity, along simulations's (arbitrary) x,y,z grid [km / s peculiar]
     'mass' : mass [M_sun]
-    'potential' : potential (computed via all particles in the box) [km^2 / s^2]
+    'potential' : potential (computed via all particles in the box) [km^2 / s^2 physical]
 
 Star particles and gas cells have two additional IDs
 (because a gas cell splits if it gets too massive, and a star particle inherits these IDs):
@@ -126,12 +125,12 @@ Some useful examples:
             vertical height wrt the disk Z (signed)
 
     part[species_name].prop('host.velocity') :
-        3-D velocity wrt primary galaxy center along simulation's (arbitrary) x,y,z axes [km/s]
-    part[species_name].prop('host.velocity.total') : total (scalar) velocity [km/s]
+        3-D velocity wrt primary galaxy center along simulation's (arbitrary) x,y,z axes [km / s]
+    part[species_name].prop('host.velocity.total') : total (scalar) velocity [km / s]
     part[species_name].prop('host.velocity.principal') :
-        3-D velocity aligned with the galaxy principal (major, intermed, minor) axes [km/s]
+        3-D velocity aligned with the galaxy principal (major, intermed, minor) axes [km / s]
     part[species_name].prop('host.velocity.principal.cylindrical') :
-        same, but in cylindrical coordinates [km/s]:
+        same, but in cylindrical coordinates [km / s]:
             along the major axes v_R (signed)
             along the azimuth v_phi (signed)
             along the vertical wrt the disk v_Z (signed)
@@ -209,13 +208,7 @@ class ParticleDictionaryClass(dict):
         self.Snapshot = None  # information about all snapshots
         self.Cosmology = None  # information about cosmology and cosmological functions
         # properties of host galaxy/halo[s]
-        self.host = {
-            'position': [],
-            'velocity': [],
-            'acceleration': [],
-            'rotation': [],
-            'axis.ratios': [],
-        }
+        self.host = {'position': [], 'velocity': [], 'rotation': [], 'axis.ratios': []}
 
         # for gas
         # adiabatic index (ratio of secific heats) to convert specific intern energy to temperature
@@ -224,10 +217,10 @@ class ParticleDictionaryClass(dict):
         # for stars and gas
         self.MassLoss = None  # relevant for stars
         self.ElementAgeTracer = None  # relevant for stars and gas
-        # use to convert id and id.child to pointer indices and species
+        # onvert id and id.child to pointer to array index
         self._id0_to_index = None  # array of pointer indices for particles with id.child = 0
-        self._id0_to_species = None  # array of pointer species for particles with id.child = 0
         self._ids_to_index = None  # dict of pointer indices for particles with id.child > 0
+        self._id0_to_species = None  # array of pointer species for particles with id.child = 0
         self._ids_to_species = None  # dict of pointer species for particles with id.child > 0
 
     def prop(self, property_name, indices=None, _dict_only=False):
@@ -500,7 +493,7 @@ class ParticleDictionaryClass(dict):
 
             return values
 
-        # sound speed [km/s], for simulations that do not store it
+        # sound speed [km / s], for simulations that do not store it
         if 'sound.speed' in property_name:
             values = (
                 np.sqrt(
@@ -578,7 +571,7 @@ class ParticleDictionaryClass(dict):
             else:
                 # general case: coordinates wrt primary host at current snapshot
                 if 'distance' in property_name:
-                    # 3-D distance vector wrt the primary host
+                    # 3-D distance vector wrt primary host at current snapshot
                     values = ut.coordinate.get_distances(
                         self.prop('position', indices, _dict_only=True),
                         self.host['position'][host_index],
@@ -586,7 +579,7 @@ class ParticleDictionaryClass(dict):
                         self.snapshot['scalefactor'],
                     )  # [kpc physical]
                 elif 'velocity' in property_name:
-                    # 3-D velocity vector wrt the primary host, adding the Hubble flow
+                    # 3-D velocity, includes the Hubble flow
                     values = ut.coordinate.get_velocity_differences(
                         self.prop('velocity', indices, _dict_only=True),
                         self.host['velocity'][host_index],
@@ -598,10 +591,7 @@ class ParticleDictionaryClass(dict):
                     )
                 elif 'acceleration' in property_name:
                     # 3-D acceleration
-                    # no correction for Hubble flow
                     values = self.prop('acceleration', indices, _dict_only=True)
-                    if 'acceleration' in self.host and len(self.host['acceleration']) > 0:
-                        values -= self.host['acceleration']
 
                 if 'principal' in property_name:
                     # align with host principal axes
@@ -764,16 +754,14 @@ class ParticleDictionaryClass(dict):
 
         return values
 
-    def get_pointers_from_ids(self, ids, child_ids):
+    def get_pointers_from_ids(self, ids, child_ids=None):
         '''
         For each input id [and child id], get a pointer to the array index [and species name] of
         the particle in this dictionary catalog.
-        If running from within dictionary of single particle species, such as part['star'],
-        return only the pointer index for each input id.
-        If running from within the meta-dictionary of multiple species, such as part,
-        return the pointer index and species name for each input id.
-        If input child_ids = False, will ignore child_ids altogether and use just ids, relevant
-        for older simulations without child ids.
+        If running from within dictionary of single particle species (such as part['star']),
+        return only the pointer index.
+        If running from within the meta-dictionary of multiple species (such as part),
+        return the pointer index and species name.
 
         Parameters
         ----------
@@ -781,7 +769,6 @@ class ParticleDictionaryClass(dict):
             ids of particles
         child_ids : array
             child ids of particles
-            child_ids = False will ignore child ids, for older simulations without child ids
 
         Returns
         -------
@@ -790,13 +777,9 @@ class ParticleDictionaryClass(dict):
         [species : array]
             for each input id, the name of the species of the particle in this catalog
         '''
-        if child_ids is not False:
-            assert child_ids is not None and len(child_ids) == len(ids), 'need to input id.child'
-            ids = np.asarray(ids)
-            child_ids = np.asarray(child_ids)
-
         if 'star' in self and 'gas' in self:
             # running from within meta-dictionary that contains sub-dictionaries for stars and gas
+            assert child_ids is not None and len(child_ids) > 0
 
             # initialize array to store species names
             species = np.zeros(ids.size, dtype='<U4')
@@ -809,11 +792,7 @@ class ParticleDictionaryClass(dict):
             # deal with ids that do not have a matched index in gas cell catalog
             # almost all should be stars, modulo any that do not exist at all in this catalog
             indices = np.where(pindices < 0)[0]
-            if child_ids is False:
-                cids = False
-            else:
-                cids = child_ids[indices]
-            pindices[indices] = self['star'].get_pointers_from_ids(ids[indices], cids)
+            pindices[indices] = self['star'].get_pointers_from_ids(ids[indices], child_ids[indices])
             # assign species name for ids that matched in the star particle catalog
             indices = indices[np.where(pindices[indices] >= 0)[0]]
             species[indices] = 'star'
@@ -825,8 +804,16 @@ class ParticleDictionaryClass(dict):
             if self._id0_to_index is None:
                 self._assign_ids_to_indices()
 
+            ids = np.asarray(ids)
+            if child_ids is not None:
+                child_ids = np.asarray(child_ids)
+                assert len(ids) == len(child_ids)
+
             # get indices of particle input to assign_ids_to_indices()
-            if child_ids is False:
+            if child_ids is None or len(child_ids) == 0:
+                if self._ids_to_index is not None and len(self._ids_to_index) > 0:
+                    print('! catalog has id.child but you did not input any child ids')
+                    print('  only can get pointer indices for particles with id.child = 0')
                 pindices = self._id0_to_index[ids]
             else:
                 pindices = ut.array.get_array_null(ids.size)
@@ -834,7 +821,7 @@ class ParticleDictionaryClass(dict):
                 indices = np.where(child_ids == 0)[0]
                 pids = ids[indices]
                 pindices[indices] = self._id0_to_index[pids]
-                # use more complex dict pointer indices for particles with id.child > 0
+                # use more complect dict pointer indices forparticles with id.child > 0
                 indices = np.where(child_ids > 0)[0]
                 pids = ids[indices]
                 cids = child_ids[indices]
@@ -854,10 +841,7 @@ class ParticleDictionaryClass(dict):
 
         # simple case: select only particles that have id.child = 0 (should be vast majority)
         # among this subset, ids are unique, so use simple array of pointer indices
-        if id_child_name in self:
-            pindices = np.where(self[id_child_name] == 0)[0]
-        else:
-            pindices = ut.array.get_arange(self[id_name].size)
+        pindices = np.where(self[id_child_name] == 0)[0]
         ids = self[id_name][pindices]
         # multiplier for combining stars + gas, to ensure that max id encompasses both catalogs
         id_max = int(1.5 * ids.max())
@@ -1610,19 +1594,19 @@ class ReadClass(ut.io.SayClass):
             # all particles ----------
             'ParticleIDs': 'id',  # indexing starts at 0
             'Coordinates': 'position',  # [kpc comoving]
-            'Velocities': 'velocity',  # [km/s physics/peculiar]
+            'Velocities': 'velocity',  # [km / s physical]
             'Masses': 'mass',  # [M_sun]
-            'Potential': 'potential',  # [km^2 / s^2]
+            'Potential': 'potential',  # [km^2 / s^2 physical]
             # grav acceleration for dark matter and stars, grav + hydro acceleration for gas
-            'Acceleration': 'acceleration',  # [km/s / Gyr]
+            'Acceleration': 'acceleration',  # [km / s^2 physical]
             # particles with adaptive smoothing
             #'AGS-Softening': 'kernel.length',  # [kpc] (same as SmoothingLength)
             # gas ----------
             'InternalEnergy': 'temperature',  # [K] (converted from stored internal energy)
             'Density': 'density',  # [M_sun / kpc^3]
             'Pressure': 'pressure',  # [M_sun / kpc / Gyr^2]
-            'SoundSpeed': 'sound.speed',  # [km/s]
-            'SmoothingLength': 'size',  # radius of kernel (smoothing length) [kpc physical]
+            'SoundSpeed': 'sound.speed',  # [km / s]
+            'SmoothingLength': 'size',  # size/radius of kernel (smoothing) length [kpc physical]
             'ElectronAbundance': 'electron.fraction',  # average number of free electrons per proton
             # fraction of hydrogen that is neutral (not ionized)
             'NeutralHydrogenAbundance': 'hydrogen.neutral.fraction',
@@ -1658,7 +1642,7 @@ class ReadClass(ut.io.SayClass):
             'BH_Mass': 'mass.bh',  # mass of black hole (not including disk) [M_sun]
             'BH_Mass_AlphaDisk': 'mass.disk',  # mass of accretion disk [M_sun]
             'BH_Mdot': 'accretion.rate',  # instantaneous accretion rate [M_sun / yr]
-            'BH_AccretionLength': 'size',  # radius of accretion kernel [kpc physical]
+            'BH_AccretionLength': 'size',  # size/radius of accretion kernel [kpc physical]
             'BH_Specific_AngMom': 'specific.angular.momentum',
             'BH_NProgs': 'merge.number',  # number of BHs that merged into this one (0 if none)
         }
@@ -2064,12 +2048,12 @@ class ReadClass(ut.io.SayClass):
                 part[spec_name]['position'] /= header['hubble']
 
             if 'velocity' in part[spec_name]:
-                # convert to [km/s physical/peculiar]
+                # convert to [km / s physical]
                 part[spec_name]['velocity'] *= np.sqrt(header['scalefactor'])
 
             if 'acceleration' in part[spec_name]:
-                # convert to [km/s / Gyr]
-                # verified that |a_r| = v_circ^2 / r = GM(<r)/r^2 = d(phi)/dr across redshift
+                # convert to [km / s^2 physical]
+                # consistent with v^2 / r at z = 0.5
                 part[spec_name]['acceleration'] *= header['hubble']
 
             for prop_name in ['mass', 'mass.bh', 'mass.disk']:
@@ -2115,7 +2099,7 @@ class ReadClass(ut.io.SayClass):
 
             if 'potential' in part[spec_name]:
                 # convert to [km^2 / s^2 physical]
-                # verified that |a_r| = v_circ^2 / r = GM(<r)/r^2 = d(phi)/dr across redshift
+                # verified that |a_r| = v_circ^2 / r = GM(<r)/r^2 = d/dr(phi) across redshift
                 part[spec_name]['potential'] /= header['scalefactor']
 
             if 'density' in part[spec_name]:
@@ -2366,7 +2350,7 @@ class ReadClass(ut.io.SayClass):
             'id.child': [0, 4e9],
             'id.generation': [0, 4e9],
             'position': [0, 1e6],  # [kpc comoving]
-            'velocity': [-1e5, 1e5],  # [km/s]
+            'velocity': [-1e5, 1e5],  # [km / s]
             'mass': [9, 1e11],  # [M_sun]
             'potential': [-1e9, 1e9],  # [km^2 / s^2]
             'temperature': [0.1, 1e9],  # [K]
@@ -2434,7 +2418,7 @@ class ReadClass(ut.io.SayClass):
         verbose=True,
     ):
         '''
-        Assign position [kpc comoving] and velocity [km/s] of each host galaxy/halo.
+        Assign position [kpc comoving] and velocity [km / s] of each host galaxy/halo.
         Use species_name, if defined, else default to stars for baryonic simulation or
         dark matter for dark matter-only simulation.
 
@@ -2601,23 +2585,8 @@ class ReadClass(ut.io.SayClass):
 
         if 'velocity' in part[species_name]:
             # assign to particle dictionary
-            part.host['velocity'] = ut.particle.get_center_velocities_or_accelerations(
+            part.host['velocity'] = ut.particle.get_center_velocities(
                 part,
-                'velocity',
-                species_name,
-                part_indicess,
-                method,
-                velocity_distance_max,
-                part.host['position'],
-                return_single_array=False,
-                verbose=verbose,
-            )
-
-        if 'acceleration' in part[species_name]:
-            # assign to particle dictionary
-            part.host['acceleration'] = ut.particle.get_center_velocities_or_accelerations(
-                part,
-                'acceleration',
                 species_name,
                 part_indicess,
                 method,
@@ -2670,7 +2639,7 @@ class ReadClass(ut.io.SayClass):
             for host_i, host_velocity in enumerate(part.host['velocity']):
                 self.say(f'host{host_i + 1} velocity = (', end='')
                 ut.io.print_array(host_velocity, '{:.1f}', end='')
-                print(') [km/s]')
+                print(') [km / s]')
 
     def assign_hosts_rotation(
         self, part, species_name='', distance_max=10, mass_percent=90, age_percent=25
@@ -2829,7 +2798,7 @@ class WriteClass(ReadClass):
         exsitu_masks = 1 * (form_host_distance > exsitu_distance)
 
         self.say(
-            '{:d} of {:d} ({:.1f}%) stars formed ex-situ'.format(
+            '{:d} of {:d} ({:.1f}\%) stars formed ex-situ'.format(
                 exsitu_masks.sum(), exsitu_masks.size, 100 * exsitu_masks.sum() / exsitu_masks.size
             )
         )
