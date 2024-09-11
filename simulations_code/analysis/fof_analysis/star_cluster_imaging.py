@@ -53,7 +53,7 @@ def get_gas_star_properties(part):
         
     }
     
-def process_first_snapshot(gs_props, age_cut_Myr=2, age_cut_Min_Myr=1, cluster_select = 0, b_pc=4, ncut_min=5):
+def process_first_snapshot(gs_props, age_cut_Max_Myr=2, age_cut_Min_Myr=1, cluster_select = 0, b_pc=4, ncut_min=5):
     """
     Processes the first snapshot to identify and return properties of star clusters.
 
@@ -69,14 +69,14 @@ def process_first_snapshot(gs_props, age_cut_Myr=2, age_cut_Min_Myr=1, cluster_s
     - A dictionary containing the IDs, coordinates, and other properties of the selected star cluster.
     """
     # Convert age cuts to Gyr
-    age_cut_Gyr = age_cut_Myr / 1e3
+    age_cut_Max_Gyr = age_cut_Max_Myr / 1e3
     age_cut_Min_Gyr = age_cut_Min_Myr / 1e3
 
     # Convert binding length to kpc
     b_kpc = b_pc / 1e3
 
     # Indices of stars we want to run fof on (to find star clusters)
-    si = np.where((gs_props['age'] <= age_cut_Gyr) & (gs_props['age'] >= age_cut_Min_Gyr) & (gs_props['rxyz'] < 20) & (abs(gs_props['z']) < 1.5))
+    si = np.where((gs_props['age'] <= age_cut_Max_Gyr) & (gs_props['age'] >= age_cut_Min_Gyr) & (gs_props['rxyz'] < 20) & (abs(gs_props['z']) < 1.5))
      #running fof
     ind, sxcm, sycm, szcm, mtot, grpid, r90, r50, srmax =fof.find(gs_props['x'][si], gs_props['y'][si], gs_props['z'][si], b=b_kpc, mass=gs_props['mass'][si], ncut=ncut_min)
 
@@ -168,7 +168,10 @@ def find_new_snap_info(s_loc, gas_star_properties_data):
     y    = gas_star_properties_data['y']
     z    = gas_star_properties_data['z']
     mass = gas_star_properties_data['mass']
-    ids =  gas_star_properties_data['ids']
+    ids  = gas_star_properties_data['ids']
+    #vx   = gas_star_properties_data['vx']
+    #vy   = gas_star_properties_data['vy']
+    #vz   = gas_star_properties_data['vz']
     
     # Extract cluster information using the specified location indices
     ids_cluster = ids[s_loc]      # IDs of the selected cluster
@@ -176,6 +179,9 @@ def find_new_snap_info(s_loc, gas_star_properties_data):
     y_cluster = y[s_loc]          # y-coordinates of the selected cluster
     z_cluster = z[s_loc]          # z-coordinates of the selected cluster
     mass_cluster = mass[s_loc]    # Masses of the selected cluster
+    #vx = vx[s_loc]
+    #vy = vy[s_loc]
+    #vz = vz[s_loc]
 
     # Create a dictionary with the snapshot-specific cluster information
     cluster_info = {
@@ -183,7 +189,11 @@ def find_new_snap_info(s_loc, gas_star_properties_data):
         'x_cluster': x_cluster,          # x-coordinates of the cluster
         'y_cluster': y_cluster,          # y-coordinates of the cluster
         'z_cluster': z_cluster,          # z-coordinates of the cluster
-        'mass_cluster': mass_cluster     # Masses of the cluster
+        'mass_cluster': mass_cluster    # Masses of the cluster
+        #'vx': vx,
+        #'vy': vy,
+        #'vz': vz
+                    
     }
 
     # Return the dictionary containing cluster information
@@ -276,12 +286,15 @@ def gas_star_coordinates(gas_star_properties, g_ind, x_cluster, y_cluster, z_clu
     g_zs = gas_star_properties['g_z'][g_ind]      # z-coordinates of the gas particles
     g_mg = gas_star_properties['g_mass'][g_ind]   # Mass of the gas particles
     g_hg = gas_star_properties['g_size'][g_ind]   # Size of the gas particles
+   
 
     # Use cluster coordinates directly for stars
     s_xs = x_cluster       # x-coordinates of the star particles
     s_ys = y_cluster       # y-coordinates of the star particles
     s_zs = z_cluster       # z-coordinates of the star particles
-
+    #s_vx = gas_star_properties['vx'][s_ind]
+    #s_vy = gas_star_properties['vy'][s_ind]
+    #s_vz = gas_star_properties['vz'][s_ind]
     # Create a dictionary with the gas and star coordinates
     coordinates = {
         'g_xs': g_xs,   # x-coordinates of the gas particles
@@ -292,6 +305,9 @@ def gas_star_coordinates(gas_star_properties, g_ind, x_cluster, y_cluster, z_clu
         's_xs': s_xs,   # x-coordinates of the star particles
         's_ys': s_ys,   # y-coordinates of the star particles
         's_zs': s_zs    # z-coordinates of the star particles
+        #'s_vx': s_vx,   # x velocity of star particles
+        #'s_vy': s_vy,   # y velocity of star particles
+        #'s_vz': s_vz    # z velocity of star particles
     }
 
     # Return the dictionary
