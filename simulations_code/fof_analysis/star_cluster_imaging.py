@@ -313,7 +313,7 @@ def gas_star_coordinates(gas_star_properties, g_ind, x_cluster, y_cluster, z_clu
     # Return the dictionary
     return coordinates
     
-def compute_velocity_array_xy(xcen, ycen, zcen, coordinates, stepn = 16, pc_width = 40, nkernel = 200, kernel_file_path = '/home1/09528/amoac/'):
+def compute_velocity_array_xy(xcen, ycen, zcen, coordinates, kernel_file_path, stepn = 16, pc_width = 40, nkernel = 200):
     """
     Computes a 2D velocity array in the xy-plane centered around a given point.
 
@@ -435,7 +435,7 @@ def compute_velocity_array_xy(xcen, ycen, zcen, coordinates, stepn = 16, pc_widt
     extent_xy=(xcen - kpc_width, xcen + kpc_width, ycen - kpc_width, ycen + kpc_width)
     return vel_array_xy, res_xy, extent_xy
 
-def compute_velocity_array_xz(xcen, ycen, zcen, coordinates, stepn = 16, pc_width = 40, nkernel = 200, kernel_file_path = '/home1/09528/amoac/'):
+def compute_velocity_array_xz(xcen, ycen, zcen, coordinates, kernel_file_path, stepn = 16, pc_width = 40, nkernel = 200):
     """
     Computes a 2D velocity array in the xz-plane centered around a given point.
 
@@ -556,7 +556,7 @@ def compute_velocity_array_xz(xcen, ycen, zcen, coordinates, stepn = 16, pc_widt
     extent_xz=(xcen - kpc_width, xcen + kpc_width, zcen - kpc_width, zcen + kpc_width)
     return vel_array_xz, res_xz, extent_xz
 
-def compute_velocity_array_yz(xcen, ycen, zcen, coordinates, stepn = 16, pc_width = 40, nkernel = 200, kernel_file_path = '/home1/09528/amoac/'):
+def compute_velocity_array_yz(xcen, ycen, zcen, coordinates, kernel_file_path, stepn = 16, pc_width = 40, nkernel = 200):
     """
     Computes a 2D velocity array in the yz-plane centered around a given point.
 
